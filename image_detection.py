@@ -1,24 +1,17 @@
 import rospy
-from std_msgs.msg import String
 import cv2
 import numpy
 from sensor_msgs.msg import Image
-from cv_bridge import CvBridge
+from cv_bridge import CvBridge, CvBridgeError
 
 
-class image_converter:
+class imageRecognition:
 
     def __init__(self):
-
         self.bridge = CvBridge()
+        self.image_sub = rospy.Subscriber("/camera/rgb/image_raw", Image, self.callback)
 
-        self.image_sub = rospy.Subscriber(
-            "/camera/rgb/image_raw",
-            Image, self.image_callback)
-
-        self.image_pub = rospy.Publisher("/image_result", String, queue_size=1)
-
-    def image_callback(self, data):
+    def callback(self, data):
         cv2.namedWindow("Image window")
         cv_image = self.bridge.imgmsg_to_cv2(data, "bgr8")
 
@@ -36,15 +29,14 @@ class image_converter:
         for c in hsv_contours:
             a = cv2.contourArea(c)
             if a > 100.0:
-                cv2.drawContours(cv_image, c, -1, (255, 0, 0), 3)
+                cv2.drawContours(hsv_img, c, -1, (255, 0, 0), 3)
 
-        self.image_pub.publish(str(numpy.mean(hsv_img)))
-
-        cv2.imshow("Image window", cv_image)
+        cv2.imshow("Image window", hsv_img)
         cv2.waitKey(1)
 
 
 if __name__ == "__main__":
-    rospy.init_node('image_converter')
-    ic = image_converter()
+    imageRecognition()
+    rospy.init_node('image_recognition', anonymous=True)
     rospy.spin()
+    cv2.destroyAllWindows()
