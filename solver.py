@@ -19,7 +19,7 @@ class solver:
         self.bridge = CvBridge()
         #self.image_sub = rospy.Subscriber("/camera/rgb/image_raw", Image, self.image_callback)
         self.laser_scan = rospy.Subscriber('/scan', LaserScan, self.path)
-        self.odom_sub = rospy.Subscriber('/odom', Odometry, self.odom)
+        #self.odom_sub = rospy.Subscriber('/odom', Odometry, self.odom)
         self.publisher = rospy.Publisher('/mobile_base/commands/velocity', Twist, queue_size=1)
         self.wall = False
 
@@ -37,8 +37,13 @@ class solver:
             t = Twist()
             t.linear.x = 0.1
             err = left-right
-            t.angular.z = err/10
-            self.publisher.publish(t)
+            if not np.isnan(err):
+                t.angular.z = err/10
+                self.publisher.publish(t)
+            else:
+                t.angular.z = 0.2
+                t.angular.x = -0.5
+                self.publisher.publish(t)
         else:
             t = Twist()
             t.angular.z = 0.5
