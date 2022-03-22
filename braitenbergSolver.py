@@ -42,13 +42,22 @@ class braitenburgSolver:  # The ROS interaction class
 
 
 if __name__ == "__main__":
-    solver = braitenburgSolver()
+    solver = braitenburgSolver()  # Initialise the main ROS interface
 
     while not rospy.is_shutdown():
+
         ranges = solver.laser_data
+        t = Twist()
 
-        right = ranges[0]
-        left = ranges[639]
-        forward = np.nanmean(ranges[160:480])
+        if ranges:  # Check that laser_data has recieved data yet
+            right = ranges[0]
+            left = ranges[639]
+            forward = np.nanmean(ranges[160:480])
+        else:  # If not, assign 0 to prevent missing data issues
+            right = 0
+            left = 0
+            forward = 0
 
+        if not np.isnan(left) and not np.isnan(right) and not np.isnan(forward):  # Check if any values are too close to register
+            t = Twist()
 
