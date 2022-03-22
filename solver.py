@@ -1,10 +1,7 @@
-import cv2
 import cv2 as cv
-import math
 import numpy as np
 import rospy
 from geometry_msgs.msg import Twist
-from nav_msgs.msg import Odometry
 from sensor_msgs.msg import LaserScan, Image
 from kobuki_msgs.msg import BumperEvent
 from cv_bridge import CvBridge, CvBridgeError
@@ -47,12 +44,12 @@ class solver:
 
         h, w, d = res.shape
 
-        moments = cv2.moments(mask)
+        moments = cv.moments(mask)
 
         if moments['m00'] > 0:
             cx = int(moments['m10'] / moments['m00'])
             cy = int(moments['m01'] / moments['m00'])
-            cv2.circle(res, (cx, cy), 20, (0, 0, 255), -1)
+            cv.circle(res, (cx, cy), 20, (0, 0, 255), -1)
 
         cv.imshow("Camera", cv_image)
         cv.imshow("Result", res)
