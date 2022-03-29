@@ -30,6 +30,8 @@ class braitenburgSolver:  # The ROS interaction class
         self.cv_image = None
         self.laser_data = None
         self.bumper_data = None
+        self.velocity_array = []
+        self.angular_array = []
 
     def image_callback(self, image_data):  # Take the image frame and assign it to a class variable
         cv_image = self.bridge.imgmsg_to_cv2(image_data, "bgr8")
@@ -78,12 +80,50 @@ if __name__ == "__main__":
             # Check if any values are too close to register
             t = Twist()
 
-            left *= 0.3
-            right *= 0.3
+            # Calculation weights
+            dst_chk = 0.5
+            hate_weight = 0.8
+            fear_weight = 1
+            control_weight = 1
 
-            (v, a) = forward_kinematics(right, left)
+            if forward > dst_chk and left > dst_chk and right > dst_chk:
 
-            t.linear.x = v
-            t.angular.z = a
+                solver.velocity_array = []
+                solver.angular_array = []
 
-            solver.publisher.publish(t)
+                # -----Braitenburg 'hate' behaviour for corridor following and object avoidance-----
+                (v, a) = forward_kinematics(right, left)
+                solver.velocity_array.append(v * hate_weight)  # Add the hate behaviour to the movements
+                solver.angular_array.append(a * hate_weight)
+
+                # -----Braitenburg 'fear' behaviour for avoiding red-----
+                hsv_img = cv.cvtColor(solver.cv_image, cv.COLOR_BGR2HSV)
+                h, w, d = hsv_img.shape
+
+                red_img = cv.inRange(hsv_img, np.array((0, 100, 50)), np.array((10, 255, 255)))
+
+                left_img = red_img[:, :w/2]  # Cut the image horizontally to get sides of vision
+                right_img = red_img[:, w/2:]
+
+                left_input = np.mean(left_img)/2
+                right_input = np.mean(right_img)/2
+
+                cv.imshow("Red", red_img)
+                cv.waitKey(1)
+
+                (v, a) = forward_kinematics(left_input, right_input)
+                solver.velocity_array.append(-(v * fear_weight))  # Add the fear behaviour to the movements
+                solver.angular_array.append(a * fear_weight * 5)
+
+                # -----Extract the kinematic results and publish-----
+                t.linear.x = sum(solver.velocity_array)*control_weight
+                t.angular.z = sum(solver.angular_array)*control_weight
+                solver.publisher.publish(t)
+
+            else:
+                # Rotate to the side with greatest distance if stuck
+                if left > right:
+                    t.angular.z = 0.2
+                else:
+                    t.angular.z = -0.2
+                solver.publisher.publish(t)
