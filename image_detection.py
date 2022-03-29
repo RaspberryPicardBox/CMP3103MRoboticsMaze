@@ -47,6 +47,9 @@ class imageRecognition:
             self.twist.angular.z = -float(err) / 100
             self.publisher.publish(self.twist)
 
+        cv2.imshow("Output", hsv_img)
+        cv2.waitKey(1)
+
 
 if __name__ == "__main__":
     imageRecognition()

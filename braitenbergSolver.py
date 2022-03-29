@@ -4,6 +4,7 @@ A ROS based maze solver for use with the Turtlebot, using almost solely Braitenb
 
 Made by Wilfred Michael Boyce
 """
+from wx.lib.pubsub.py2and3 import values
 
 import rospy
 import cv2 as cv
@@ -41,7 +42,22 @@ class braitenburgSolver:  # The ROS interaction class
         self.bumper_data = bumper_data.state
 
 
+# Forward kinematics for the wheels on the turtlebot from Twist. Code from Marc Hanheide -
+# https://github.com/LCAS/teaching/blob/a6bef8f36f6eec70ebd99701671736b4bf5a542b/cmp3103m-code-fragments
+# /kinematics_diffdrive.py#L16-L21
+def forward_kinematics(w_l, w_r):
+    c_l = wheel_radius * w_l
+    c_r = wheel_radius * w_r
+    v = (c_l + c_r) / 2
+    a = (c_r - c_l) / (2 * robot_radius)
+    return (v, a)
+
+
 if __name__ == "__main__":
+
+    wheel_radius = .06
+    robot_radius = .2
+
     solver = braitenburgSolver()  # Initialise the main ROS interface
 
     while not rospy.is_shutdown():
@@ -50,14 +66,24 @@ if __name__ == "__main__":
         t = Twist()
 
         if ranges:  # Check that laser_data has recieved data yet
-            right = ranges[0]
-            left = ranges[639]
+            right = np.nanmean(ranges[0:120])
+            left = np.nanmean(ranges[520:639])
             forward = np.nanmean(ranges[160:480])
         else:  # If not, assign 0 to prevent missing data issues
             right = 0
             left = 0
             forward = 0
 
-        if not np.isnan(left) and not np.isnan(right) and not np.isnan(forward):  # Check if any values are too close to register
+        if not np.isnan(left) and not np.isnan(right) and not np.isnan(forward):
+            # Check if any values are too close to register
             t = Twist()
 
+            left *= 0.3
+            right *= 0.3
+
+            (v, a) = forward_kinematics(right, left)
+
+            t.linear.x = v
+            t.angular.z = a
+
+            solver.publisher.publish(t)
