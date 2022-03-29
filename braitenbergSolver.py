@@ -75,13 +75,14 @@ if __name__ == "__main__":
             right = 0
             left = 0
             forward = 0
+            ranges = [0]
 
         if not np.isnan(left) and not np.isnan(right) and not np.isnan(forward):
             # Check if any values are too close to register
             t = Twist()
 
             # Calculation weights
-            dst_chk = 0.5
+            dst_chk = 0.4
             hate_weight = 0.8
             fear_weight = 1
             control_weight = 1
@@ -122,8 +123,13 @@ if __name__ == "__main__":
 
             else:
                 # Rotate to the side with greatest distance if stuck
-                if left > right:
-                    t.angular.z = 0.2
-                else:
-                    t.angular.z = -0.2
+                min_dist = min(ranges)
+                min_index = ranges.index(min_dist)
+                max_dist = max(ranges)
+                max_index = ranges.index(max_dist)
+
+                err = max_index - min_index
+
+                t.angular.z = err / 10
+                t.linear.x = -0.2
                 solver.publisher.publish(t)
