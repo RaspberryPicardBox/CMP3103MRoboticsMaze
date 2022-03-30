@@ -87,9 +87,9 @@ if __name__ == "__main__":
             forward = 0
             ranges = [0]
 
-        if np.isnan(left) or np.isnan(right) or np.isnan(forward) or left == 0 or right == 0 or forward == 0:
-            t.linear.x = -0.1
-            t.angular.z = -0.1
+        if np.isnan(left) or np.isnan(right) or np.isnan(forward) or left == 0 or right == 0 or forward == 0 or solver.bumper_data == 1:
+            t.linear.x = -0.2
+            t.angular.z = -0.2
             solver.publisher.publish(t)
 
         if not np.isnan(left) and not np.isnan(right) and not np.isnan(forward):
@@ -98,14 +98,15 @@ if __name__ == "__main__":
 
             # Calculation weights
             dst_chk = 0.4
-            hate_weight = 0.6
-            fear_weight = 0.95
-            love_weight_blue = 0.2
-            love_weight_green = 2
-            control_weight = 1
+            hate_weight = 0.9
+            red_thresh = 5
+            love_weight_blue = 0.65
+            blue_thresh = 40
+            love_weight_green = 1
+            control_weight = 2
             left_bias = 0.5
 
-            if forward > dst_chk and left > dst_chk and right > dst_chk and solver.bumper_data == 0:
+            if min(ranges) > dst_chk and solver.bumper_data == 0:
 
                 # Braitenberg behaviours
                 solver.velocity_array = []
@@ -121,32 +122,34 @@ if __name__ == "__main__":
                 red_img = cv.inRange(solver.hsv_img, np.array((0, 100, 50)), np.array((10, 255, 255)))
                 h, w, d = solver.hsv_img.shape
 
-                left_img = red_img[:, :w / 2]  # Cut the image horizontally to get sides of vision
-                right_img = red_img[:, w / 2:]
+                if np.mean(red_img) > red_thresh:
+                    left_img = red_img[:, :w / 2]  # Cut the image horizontally to get sides of vision
+                    left_input = np.mean(left_img) / 5
+                    while left_input > 0:  # This behaviour is different to emulate a "wall" on the red
+                        red_img = cv.inRange(solver.hsv_img, np.array((0, 100, 50)), np.array((10, 255, 255)))
+                        left_img = red_img[:, :w / 2]
+                        left_input = np.mean(left_img) / 5
 
-                left_input = np.mean(left_img) / 2
-                right_input = np.mean(right_img) / 2
-
-                (v, a) = forward_kinematics(left_input, right_input)
-                solver.velocity_array.append(-(v * fear_weight))  # Add the fear behaviour to the movements
-                solver.angular_array.append(a * fear_weight * 2)
+                        t.angular.z = -0.2  # Rotating until no longer seeing avoids stuck conditions
+                        solver.publisher.publish(t)
 
                 # -----Braitenberg 'love' behaviour for going to blue-----
 
                 blue_img = cv.inRange(solver.hsv_img, np.array((100, 100, 50)), np.array((150, 255, 255)))
 
-                left_img = blue_img[:, :w / 2]  # Cut the image horizontally to get sides of vision
-                right_img = blue_img[:, w / 2:]
+                if np.mean(blue_img) < blue_thresh:
+                    left_img = blue_img[:, :w / 2]  # Cut the image horizontally to get sides of vision
+                    right_img = blue_img[:, w / 2:]
 
-                left_input = -np.mean(left_img) / 10
-                right_input = -np.mean(right_img) / 10
+                    left_input = -np.mean(left_img) / 10
+                    right_input = -np.mean(right_img) / 10
 
-                (v, a) = forward_kinematics(left_input, right_input)
-                solver.angular_array.append(a * love_weight_blue)  # Add the love behaviour to the movements
+                    (v, a) = forward_kinematics(left_input, right_input)
+                    solver.angular_array.append(a * love_weight_blue)  # Add the love behaviour to the movements
 
                 # -----Extract the kinematic results and publish-----
-                t.linear.x = sum(solver.velocity_array)*control_weight
-                t.angular.z = sum(solver.angular_array)*control_weight
+                t.linear.x = max(-0.1, min(sum(solver.velocity_array), 0.1))*control_weight
+                t.angular.z = max(-0.1, min(sum(solver.angular_array), 0.1))*control_weight
                 solver.publisher.publish(t)
 
                 # -----Braitenberg 'love' behaviour for going to green-----
@@ -159,16 +162,18 @@ if __name__ == "__main__":
                 left_input = -np.mean(left_img) / 10
                 right_input = -np.mean(right_img) / 10
 
+                if np.mean(green_img) > 30:
+                    quit()
+
                 (v, a) = forward_kinematics(left_input, right_input)
                 solver.angular_array.append(a * love_weight_green)  # Add the love behaviour to the movements
 
                 # -----Extract the kinematic results and publish-----
-                t.linear.x = sum(solver.velocity_array) * control_weight
-                t.angular.z = sum(solver.angular_array) * control_weight
+                t.linear.x = max(-0.1, min(sum(solver.velocity_array), 0.1)) * control_weight  # Clamp the max and min
+                t.angular.z = max(-0.1, min(sum(solver.angular_array), 0.1)) * control_weight
                 solver.publisher.publish(t)
 
             else:
-                # Rotate to the side with greatest distance if stuck
                 min_dist = min(ranges)
                 min_index = ranges.index(min_dist)
                 max_dist = max(ranges)
@@ -176,6 +181,5 @@ if __name__ == "__main__":
 
                 err = max_index - min_index
 
-                t.angular.z = err / 150
-                t.linear.x = -0.2
+                t.angular.z = err / 100
                 solver.publisher.publish(t)
