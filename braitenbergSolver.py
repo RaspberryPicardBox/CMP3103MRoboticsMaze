@@ -103,7 +103,7 @@ if __name__ == "__main__":
             love_weight_blue = 0.65
             blue_thresh = 40
             love_weight_green = 1
-            control_weight = 2
+            control_weight = 1
             left_bias = 0.5
 
             if min(ranges) > dst_chk and solver.bumper_data == 0:
@@ -179,7 +179,7 @@ if __name__ == "__main__":
                 max_dist = max(ranges)
                 max_index = ranges.index(max_dist)
 
-                err = max_index - min_index
+                err = max(-0.2, min((max_index - min_index), 0.2))
 
-                t.angular.z = err / 100
+                t.angular.z = err
                 solver.publisher.publish(t)
