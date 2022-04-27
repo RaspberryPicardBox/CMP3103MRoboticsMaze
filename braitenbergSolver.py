@@ -6,10 +6,12 @@ This Turtlebot controller will navigate a maze, sticking to the left wall, avoid
 blue and green goals.
 Made by Wilfred Michael Boyce
 """
+from numpy import nanmean
 
 import rospy
 import cv2 as cv
 import numpy as np
+import time
 from cv_bridge import CvBridge
 from geometry_msgs.msg import Twist
 from sensor_msgs.msg import LaserScan, Image
@@ -72,6 +74,8 @@ if __name__ == "__main__":
 
     solver = braitenbergSolver()  # Initialise the main ROS interface
 
+    leftMem = []
+
     while not rospy.is_shutdown():
 
         ranges = solver.laser_data
@@ -83,9 +87,10 @@ if __name__ == "__main__":
             forward = np.nanmean(ranges[160:480])
         else:  # If not, assign 0 to prevent missing data issues
             right = 0
-            left = 0
+            left = 1
             forward = 0
             ranges = [0]
+            leftMem.append(left)
 
         if np.isnan(left) or np.isnan(right) or np.isnan(forward) or left == 0 or right == 0 or forward == 0 or solver.bumper_data == 1:
             t.linear.x = -0.2
@@ -97,14 +102,23 @@ if __name__ == "__main__":
             t = Twist()
 
             # Calculation weights
-            dst_chk = 0.4
-            hate_weight = 0.9
+            dst_chk = 0.5
+            hate_weight = 0.8
             red_thresh = 5
             love_weight_blue = 0.65
             blue_thresh = 40
             love_weight_green = 1
             control_weight = 1
-            left_bias = 0.5
+            left_bias = 0.4
+
+            if len(leftMem) < 100:
+                leftMem.append(left)
+            else:
+                leftMem.pop(0)
+                leftMem.append(left)
+
+            print(np.nanmean(leftMem))
+            print("Actual " + str(left))
 
             if min(ranges) > dst_chk and solver.bumper_data == 0:
 
@@ -113,12 +127,11 @@ if __name__ == "__main__":
                 solver.angular_array = []
 
                 # -----Braitenberg 'hate' behaviour for corridor following and object avoidance-----
-                (v, a) = forward_kinematics(right * left_bias, left)
+                (v, a) = forward_kinematics(right * left_bias, np.nanmean(leftMem))
                 solver.velocity_array.append(v * hate_weight)  # Add the hate behaviour to the movements
                 solver.angular_array.append(a * hate_weight)
 
-                # -----Braitenberg 'fear' behaviour for avoiding red-----
-
+                # -----Braitenberg 'fear' behaviour for avoiding red----
                 red_img = cv.inRange(solver.hsv_img, np.array((0, 100, 50)), np.array((10, 255, 255)))
                 h, w, d = solver.hsv_img.shape
 
@@ -134,7 +147,6 @@ if __name__ == "__main__":
                         solver.publisher.publish(t)
 
                 # -----Braitenberg 'love' behaviour for going to blue-----
-
                 blue_img = cv.inRange(solver.hsv_img, np.array((100, 100, 50)), np.array((150, 255, 255)))
 
                 if np.mean(blue_img) < blue_thresh:
@@ -153,7 +165,6 @@ if __name__ == "__main__":
                 solver.publisher.publish(t)
 
                 # -----Braitenberg 'love' behaviour for going to green-----
-
                 green_img = cv.inRange(solver.hsv_img, np.array((60, 100, 50)), np.array((80, 255, 255)))
 
                 left_img = green_img[:, :w / 2]  # Cut the image horizontally to get sides of vision
@@ -179,7 +190,9 @@ if __name__ == "__main__":
                 max_dist = max(ranges)
                 max_index = ranges.index(max_dist)
 
-                err = max(-0.2, min((max_index - min_index), 0.2))
+                #err = max(-0.2, min((max_index - min_index), 0.2))
+
+                err = -0.2
 
                 t.angular.z = err
                 solver.publisher.publish(t)
