@@ -93,9 +93,12 @@ if __name__ == "__main__":
             leftMem.append(left)
 
         if np.isnan(left) or np.isnan(right) or np.isnan(forward) or left == 0 or right == 0 or forward == 0 or solver.bumper_data == 1:
-            t.linear.x = -0.2
-            t.angular.z = -0.2
-            solver.publisher.publish(t)
+            time_start = rospy.get_time()
+            while rospy.get_time() < time_start+2:
+                t.linear.x = -0.1
+                t.angular.z = -0.4
+                solver.publisher.publish(t)
+                rospy.sleep(1)
 
         if not np.isnan(left) and not np.isnan(right) and not np.isnan(forward):
             # Check if any values are too close to register
@@ -109,16 +112,13 @@ if __name__ == "__main__":
             blue_thresh = 40
             love_weight_green = 1
             control_weight = 1
-            left_bias = 0.4
+            left_bias = 1
 
-            if len(leftMem) < 100:
+            if len(leftMem) < 20:
                 leftMem.append(left)
             else:
                 leftMem.pop(0)
                 leftMem.append(left)
-
-            print(np.nanmean(leftMem))
-            print("Actual " + str(left))
 
             if min(ranges) > dst_chk and solver.bumper_data == 0:
 
@@ -127,7 +127,7 @@ if __name__ == "__main__":
                 solver.angular_array = []
 
                 # -----Braitenberg 'hate' behaviour for corridor following and object avoidance-----
-                (v, a) = forward_kinematics(right * left_bias, np.nanmean(leftMem))
+                (v, a) = forward_kinematics(right - left_bias, left)
                 solver.velocity_array.append(v * hate_weight)  # Add the hate behaviour to the movements
                 solver.angular_array.append(a * hate_weight)
 
@@ -190,9 +190,12 @@ if __name__ == "__main__":
                 max_dist = max(ranges)
                 max_index = ranges.index(max_dist)
 
-                #err = max(-0.2, min((max_index - min_index), 0.2))
+                err = max(-0.2, min((max_index - min_index), 0.2))
 
-                err = -0.2
+                while min_dist < dst_chk+0.1:
+                    if solver.laser_data:
+                        min_dist = min(solver.laser_data)
 
-                t.angular.z = err
-                solver.publisher.publish(t)
+                    t.angular.z = err
+                    solver.publisher.publish(t)
+                    rospy.sleep(2)
