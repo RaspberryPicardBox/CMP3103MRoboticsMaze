@@ -6,12 +6,10 @@ This Turtlebot controller will navigate a maze, sticking to the left wall, avoid
 blue and green goals.
 Made by Wilfred Michael Boyce
 """
-from numpy import nanmean
 
 import rospy
 import cv2 as cv
 import numpy as np
-import time
 from cv_bridge import CvBridge
 from geometry_msgs.msg import Twist
 from sensor_msgs.msg import LaserScan, Image
